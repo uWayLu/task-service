@@ -10,18 +10,22 @@ Gmail Apps Script Webhook 財務文件處理服務
 - 📊 銀行對帳單
 - 💳 信用卡帳單  
 - 💰 交易通知
+- 🔒 **支援密碼保護的 PDF**
 
 ## 快速開始
 
 ```bash
 # 1. 安裝依賴
-./run.sh
+pip install -r requirements.txt
 
 # 2. 啟動服務
 python app.py
 
-# 3. 測試
-curl http://localhost:12345/
+# 3. 測試（無密碼 PDF）
+curl http://localhost:12345/api/health
+
+# 4. 測試（有密碼 PDF）
+python test_pdf_parser.py your-file.pdf --password YOUR_PASSWORD
 ```
 
 ## 專案架構
@@ -31,10 +35,12 @@ task-service/
 ├── app.py              # 主程式 (Blueprint 架構)
 ├── api/                # API 路由模組
 │   ├── health.py       # 健康檢查
-│   ├── webhook.py      # Webhook 處理
-│   └── document.py     # 文件管理
+│   ├── webhook.py      # Webhook 處理（支援密碼）
+│   ├── document.py     # 文件管理
+│   ├── test.py         # 測試 API
+│   └── docs.py         # 文件瀏覽
 ├── utils/              # 工具模組
-│   ├── pdf_parser.py   # PDF 解析
+│   ├── pdf_parser.py   # PDF 解析（支援密碼）
 │   └── document_processor.py  # 文件處理
 ├── docs/               # 詳細文件
 └── examples/           # 範例程式碼
@@ -42,23 +48,79 @@ task-service/
 
 ## API 端點
 
-| 端點 | 方法 | 說明 |
-|------|------|------|
-| `/` | GET | 服務資訊 |
-| `/api/health` | GET | 健康檢查 |
-| `/api/webhook/gmail` | POST | 處理 PDF webhook |
-| `/api/documents/types` | GET | 文件類型列表 |
+| 端點 | 方法 | 說明 | 支援密碼 |
+|------|------|------|---------|
+| `/` | GET | 服務資訊 | - |
+| `/api/health` | GET | 健康檢查 | - |
+| `/api/webhook/gmail` | POST | 處理 PDF webhook | ✅ |
+| `/api/documents/types` | GET | 文件類型列表 | - |
+| `/api/test/parse-pdf` | POST | 測試 PDF 解析 | ✅ |
+| `/api/docs` | GET | 文件瀏覽 | - |
 
 ## 測試 PDF 解析
 
-```bash
-# 方法 1: Console 測試（推薦）
-python test_pdf_parser.py your-file.pdf
+### Console 測試（推薦）
 
-# 方法 2: HTTP API
-curl -X POST http://localhost:12345/api/test/parse-pdf \
-  -F "file=@your-file.pdf"
+```bash
+# 無密碼 PDF
+python test_pdf_parser.py normal.pdf
+
+# 有密碼 PDF
+python test_pdf_parser.py encrypted.pdf --password A123456789
+
+# 詳細測試
+python test_pdf_parser.py encrypted.pdf --password A123456789 --all
+
+# 快速測試腳本
+./test_password.sh encrypted.pdf A123456789
 ```
+
+### HTTP API 測試
+
+```bash
+# 啟動服務
+python app.py
+
+# 測試有密碼的 PDF
+curl -X POST http://localhost:12345/api/test/parse-pdf \
+  -F "file=@encrypted.pdf" \
+  -F "password=A123456789"
+```
+
+## 🔒 密碼保護 PDF 處理
+
+### 預設密碼設定（推薦）
+
+在 `.env` 檔案中設定預設密碼，系統會自動嘗試：
+
+```env
+# .env
+PDF_DEFAULT_PASSWORDS=A123456789,19900101,12345678
+```
+
+設定後，即使不提供密碼參數，系統也會自動嘗試解密！
+
+### 手動提供密碼
+
+```bash
+# Console 測試
+python test_pdf_parser.py encrypted.pdf --password A123456789
+
+# HTTP API
+curl -X POST http://localhost:12345/api/webhook/gmail \
+  -F "file=@statement.pdf" \
+  -F "document_type=bank_statement" \
+  -F "password=A123456789"
+```
+
+### 常見密碼格式
+- **身分證字號**：`A123456789`
+- **生日**：`19900101` (YYYYMMDD)
+- **統一編號**：`12345678`
+
+**詳細文件：**
+- [PDF 密碼配置指南](docs/PDF_PASSWORD_CONFIG.md) - 如何設定預設密碼
+- [PDF 密碼處理指南](docs/PDF_PASSWORD_HANDLING.md) - 完整使用說明
 
 ## TODO
 
@@ -69,27 +131,35 @@ curl -X POST http://localhost:12345/api/test/parse-pdf \
 - [ ] 資料庫整合
 - [ ] 非同步處理
 - [ ] 管理後台
+- [x] 密碼保護 PDF 支援 ✅
 
 ### 計劃改進
 - [ ] 提升 PDF 解析準確度
 - [ ] 支援更多銀行格式
 - [ ] 批次處理功能
 - [ ] Webhook 重試機制
+- [ ] 密碼自動推測
 
 ## 文件
 
 - 📚 [快速開始指南](docs/QUICKSTART.md)
 - 🚀 [部署指南](docs/DEPLOYMENT.md)
 - 🔧 [如何新增 API](docs/HOW_TO_ADD_API.md)
+- 🧪 [PDF 測試指南](docs/PDF_TESTING.md)
+- 🔒 [PDF 密碼處理](docs/PDF_PASSWORD_HANDLING.md)
+- ⚙️ [PDF 密碼配置](docs/PDF_PASSWORD_CONFIG.md)
+- 📁 [檔案組織說明](docs/FILE_ORGANIZATION.md)
+- 🏗️ [Flask 專案結構](docs/FLASK_PROJECT_STRUCTURES.md)
 - 📝 [更新日誌](docs/CHANGELOG.md)
-- 🏗️ [專案總結](docs/PROJECT_SUMMARY.md)
+- 🌐 [線上文件瀏覽](http://localhost:12345/api/docs)
 
 ## 技術堆疊
 
 - Flask 3.0.0 - Web 框架
 - pdfplumber 0.11.0 - PDF 解析
-- PyPDF2 3.0.1 - PDF 元資料
+- PyPDF2 3.0.1 - PDF 元資料（支援加密）
 - Gunicorn 21.2.0 - WSGI 伺服器
+- markdown 3.5.1 - 文件渲染
 
 ## 授權
 
@@ -97,4 +167,9 @@ MIT License
 
 ---
 
-**需要協助？** 查看 [文件目錄](docs/) 或提交 Issue
+**需要協助？** 
+- 查看 [文件目錄](docs/)
+- 訪問 [線上文件](http://localhost:12345/api/docs)
+- 提交 Issue
+
+**注意**：本服務處理財務敏感資訊，請確保在安全的環境中運行，並使用 HTTPS 傳輸密碼。

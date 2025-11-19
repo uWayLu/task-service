@@ -61,6 +61,7 @@ def gmail_webhook():
         sender = request.form.get('sender', '')
         subject = request.form.get('subject', '')
         email_date = request.form.get('date', '')
+        pdf_password = request.form.get('password', '')  # PDF 密碼（選填）
         
         # 儲存檔案
         filename = secure_filename(file.filename)
@@ -70,7 +71,19 @@ def gmail_webhook():
         
         # 解析 PDF
         pdf_parser = PDFParser()
-        pdf_content = pdf_parser.extract_text(filepath)
+        try:
+            pdf_content = pdf_parser.extract_text(filepath, pdf_password or None)
+        except PermissionError as e:
+            # 清理檔案
+            if os.path.exists(filepath):
+                os.remove(filepath)
+            
+            return jsonify({
+                'status': 'error',
+                'message': str(e),
+                'error_code': 'PDF_ENCRYPTED',
+                'hint': '請在 password 參數中提供 PDF 密碼'
+            }), 403
         
         # 處理文件
         processor = DocumentProcessor()

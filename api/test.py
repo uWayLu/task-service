@@ -37,6 +37,9 @@ def test_parse_pdf():
                 'message': '檔案名稱為空'
             }), 400
         
+        # 獲取密碼（如果有）
+        pdf_password = request.form.get('password', '')
+        
         # 儲存檔案
         filename = secure_filename(file.filename)
         upload_folder = current_app.config['UPLOAD_FOLDER']
@@ -45,7 +48,18 @@ def test_parse_pdf():
         
         # 解析 PDF
         parser = PDFParser()
-        result = parser.extract_text(filepath)
+        try:
+            result = parser.extract_text(filepath, pdf_password or None)
+        except PermissionError as e:
+            # 清理檔案
+            os.remove(filepath)
+            
+            return jsonify({
+                'status': 'error',
+                'message': str(e),
+                'error_code': 'PDF_ENCRYPTED',
+                'hint': '這個 PDF 有密碼保護。請在 password 參數中提供密碼。'
+            }), 403
         
         # 提取額外資訊
         text = result['text']
@@ -124,6 +138,9 @@ def test_process_document():
                 'message': '檔案名稱為空'
             }), 400
         
+        # 獲取密碼（如果有）
+        pdf_password = request.form.get('password', '')
+        
         # 儲存檔案
         filename = secure_filename(file.filename)
         upload_folder = current_app.config['UPLOAD_FOLDER']
@@ -132,7 +149,18 @@ def test_process_document():
         
         # 解析 PDF
         parser = PDFParser()
-        pdf_content = parser.extract_text(filepath)
+        try:
+            pdf_content = parser.extract_text(filepath, pdf_password or None)
+        except PermissionError as e:
+            # 清理檔案
+            os.remove(filepath)
+            
+            return jsonify({
+                'status': 'error',
+                'message': str(e),
+                'error_code': 'PDF_ENCRYPTED',
+                'hint': '這個 PDF 有密碼保護。請在 password 參數中提供密碼。'
+            }), 403
         
         # 處理文件
         processor = DocumentProcessor()

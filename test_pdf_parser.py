@@ -20,8 +20,12 @@ import sys
 import json
 import argparse
 from pathlib import Path
+from dotenv import load_dotenv
 from utils.pdf_parser import PDFParser
 from utils.document_processor import DocumentProcessor
+
+# 載入環境變數
+load_dotenv()
 
 
 def print_separator(char='=', length=60):
@@ -41,24 +45,38 @@ def format_json(data, indent=2):
     return json.dumps(data, ensure_ascii=False, indent=indent)
 
 
-def test_pdf_basic(pdf_path, verbose=False):
+def test_pdf_basic(pdf_path, verbose=False, password=None):
     """
     基本 PDF 解析測試
     
     Args:
         pdf_path: PDF 檔案路徑
         verbose: 是否顯示詳細資訊
+        password: PDF 密碼
     """
     print_section("PDF 基本資訊")
     
     parser = PDFParser()
     
+    # 顯示載入的預設密碼數量
+    if parser.default_passwords:
+        print(f"🔑 已載入 {len(parser.default_passwords)} 個預設密碼")
+    
     try:
-        result = parser.extract_text(pdf_path)
+        result = parser.extract_text(pdf_path, password)
         
         print(f"檔案路徑: {pdf_path}")
         print(f"總頁數: {result['total_pages']}")
         print(f"文字長度: {len(result['text'])} 字元")
+        
+        # 顯示加密狀態
+        if result.get('is_encrypted'):
+            print(f"🔒 加密狀態: 已加密（已解密）")
+            print(f"   {result.get('encryption_info', '')}")
+            if result.get('password_used'):
+                print(f"   使用密碼: {result.get('password_hint', '***')}")
+        else:
+            print(f"🔓 加密狀態: 無加密")
         
         # 顯示元資料
         if result.get('metadata'):
@@ -77,24 +95,36 @@ def test_pdf_basic(pdf_path, verbose=False):
         
         return result
         
+    except PermissionError as e:
+        print(f"🔒 PDF 加密錯誤: {str(e)}")
+        print(f"\n💡 提示:")
+        if parser.default_passwords:
+            print(f"   - 已嘗試 {len(parser.default_passwords)} 個預設密碼，都失敗了")
+            print(f"   - 請使用 --password 參數提供正確密碼")
+        else:
+            print(f"   - 未設定預設密碼（在 .env 中設定 PDF_DEFAULT_PASSWORDS）")
+            print(f"   - 或使用 --password 參數提供密碼")
+        print(f"\n   範例: python test_pdf_parser.py {pdf_path} --password YOUR_PASSWORD")
+        return None
     except Exception as e:
         print(f"❌ 錯誤: {str(e)}")
         return None
 
 
-def test_pdf_extraction(pdf_path):
+def test_pdf_extraction(pdf_path, password=None):
     """
     測試資訊提取功能
     
     Args:
         pdf_path: PDF 檔案路徑
+        password: PDF 密碼
     """
     print_section("資訊提取測試")
     
     parser = PDFParser()
     
     try:
-        result = parser.extract_text(pdf_path)
+        result = parser.extract_text(pdf_path, password)
         text = result['text']
         
         # 測試數字提取
@@ -126,13 +156,14 @@ def test_pdf_extraction(pdf_path):
         print(f"❌ 錯誤: {str(e)}")
 
 
-def test_document_processing(pdf_path, doc_type='unknown'):
+def test_document_processing(pdf_path, doc_type='unknown', password=None):
     """
     測試文件處理功能
     
     Args:
         pdf_path: PDF 檔案路徑
         doc_type: 文件類型
+        password: PDF 密碼
     """
     print_section(f"文件處理測試 (類型: {doc_type})")
     
@@ -141,7 +172,7 @@ def test_document_processing(pdf_path, doc_type='unknown'):
     
     try:
         # 解析 PDF
-        pdf_content = parser.extract_text(pdf_path)
+        pdf_content = parser.extract_text(pdf_path, password)
         
         # 處理文件
         result = processor.process_document(
@@ -172,6 +203,10 @@ def test_document_processing(pdf_path, doc_type='unknown'):
         
         return result
         
+    except PermissionError as e:
+        print(f"🔒 PDF 加密錯誤: {str(e)}")
+        print(f"\n💡 提示: 請使用 --password 參數提供密碼")
+        return None
     except Exception as e:
         print(f"❌ 錯誤: {str(e)}")
         import traceback
@@ -179,20 +214,21 @@ def test_document_processing(pdf_path, doc_type='unknown'):
         return None
 
 
-def show_text_preview(pdf_path, lines=20):
+def show_text_preview(pdf_path, lines=20, password=None):
     """
     顯示 PDF 文字預覽
     
     Args:
         pdf_path: PDF 檔案路徑
         lines: 顯示行數
+        password: PDF 密碼
     """
     print_section("PDF 文字內容預覽")
     
     parser = PDFParser()
     
     try:
-        result = parser.extract_text(pdf_path)
+        result = parser.extract_text(pdf_path, password)
         text_lines = result['text'].split('\n')
         
         print(f"\n前 {lines} 行內容:\n")
@@ -203,6 +239,9 @@ def show_text_preview(pdf_path, lines=20):
         if len(text_lines) > lines:
             print(f"\n... 還有 {len(text_lines) - lines} 行")
         
+    except PermissionError as e:
+        print(f"🔒 PDF 加密錯誤: {str(e)}")
+        print(f"\n💡 提示: 請使用 --password 參數提供密碼")
     except Exception as e:
         print(f"❌ 錯誤: {str(e)}")
 
@@ -251,6 +290,8 @@ def main():
                        help='輸出結果到 JSON 檔案')
     parser.add_argument('-a', '--all', action='store_true',
                        help='執行所有測試')
+    parser.add_argument('--password', 
+                       help='PDF 密碼（如果檔案有加密）')
     
     args = parser.parse_args()
     
@@ -268,7 +309,7 @@ def main():
     # 執行測試
     try:
         # 基本資訊
-        basic_result = test_pdf_basic(args.pdf_file, args.verbose)
+        basic_result = test_pdf_basic(args.pdf_file, args.verbose, args.password)
         print()
         
         if not basic_result:
@@ -276,16 +317,16 @@ def main():
         
         # 資訊提取測試
         if args.all or args.verbose:
-            test_pdf_extraction(args.pdf_file)
+            test_pdf_extraction(args.pdf_file, args.password)
             print()
         
         # 文字預覽
         if args.preview:
-            show_text_preview(args.pdf_file, args.preview)
+            show_text_preview(args.pdf_file, args.preview, args.password)
             print()
         
         # 文件處理測試
-        doc_result = test_document_processing(args.pdf_file, args.type)
+        doc_result = test_document_processing(args.pdf_file, args.type, args.password)
         print()
         
         # 儲存結果
