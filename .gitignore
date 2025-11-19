@@ -36,14 +36,32 @@ ENV/
 # Environment variables
 .env
 
-# Uploads
-uploads/
-*.pdf
+# Uploads - 實際上傳的檔案（會自動刪除，但預防萬一）
+uploads/*
+!uploads/.gitkeep
+
+# Test files - 測試用的 PDF 範例
+test_files/*.pdf
+!test_files/sample.pdf
+
+# Data - 處理後的資料
+data/*
+!data/.gitkeep
+!data/README.md
 
 # Logs
+logs/
 *.log
+
+# Output - 測試輸出結果
+output/
+results/
 
 # OS
 .DS_Store
 Thumbs.db
 
+# Backup
+*.bak
+*~
+.backup/
