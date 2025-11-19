@@ -7,7 +7,7 @@ from flask import Blueprint
 api_bp = Blueprint('api', __name__, url_prefix='/api')
 
 # 導入路由（避免循環導入）
-from . import health, webhook, document, test
+from . import health, webhook, document, test, docs
 
 __all__ = ['api_bp']
 
