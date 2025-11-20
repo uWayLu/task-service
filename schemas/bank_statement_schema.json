@@ -1,0 +1,175 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://task-service.local/schemas/bank_statement.json",
+  "title": "銀行對帳單",
+  "description": "銀行對帳單資料結構定義",
+  "type": "object",
+  "required": [
+    "document_type",
+    "bank_name",
+    "account_info",
+    "statement_period",
+    "balance_info"
+  ],
+  "properties": {
+    "document_type": {
+      "type": "string",
+      "const": "bank_statement",
+      "description": "文件類型"
+    },
+    "bank_name": {
+      "type": "string",
+      "description": "銀行名稱"
+    },
+    "account_info": {
+      "type": "object",
+      "description": "帳戶資訊",
+      "required": ["account_number"],
+      "properties": {
+        "account_number": {
+          "type": "string",
+          "description": "帳號（遮罩後）"
+        },
+        "account_name": {
+          "type": "string",
+          "description": "戶名（遮罩後）"
+        },
+        "account_type": {
+          "type": "string",
+          "enum": ["savings", "checking", "time_deposit", "foreign_currency"],
+          "description": "帳戶類型"
+        },
+        "currency": {
+          "type": "string",
+          "default": "TWD",
+          "description": "幣別"
+        }
+      }
+    },
+    "statement_period": {
+      "type": "object",
+      "description": "對帳期間",
+      "required": ["start_date", "end_date"],
+      "properties": {
+        "start_date": {
+          "type": "string",
+          "format": "date",
+          "description": "起始日期"
+        },
+        "end_date": {
+          "type": "string",
+          "format": "date",
+          "description": "結束日期"
+        }
+      }
+    },
+    "balance_info": {
+      "type": "object",
+      "description": "餘額資訊",
+      "required": ["opening_balance", "closing_balance"],
+      "properties": {
+        "opening_balance": {
+          "type": "number",
+          "description": "期初餘額"
+        },
+        "closing_balance": {
+          "type": "number",
+          "description": "期末餘額"
+        },
+        "available_balance": {
+          "type": "number",
+          "description": "可用餘額"
+        },
+        "total_deposits": {
+          "type": "number",
+          "minimum": 0,
+          "description": "存款總額"
+        },
+        "total_withdrawals": {
+          "type": "number",
+          "minimum": 0,
+          "description": "提款總額"
+        }
+      }
+    },
+    "transactions": {
+      "type": "array",
+      "description": "交易記錄",
+      "items": {
+        "type": "object",
+        "required": ["date", "description", "amount", "balance"],
+        "properties": {
+          "date": {
+            "type": "string",
+            "format": "date",
+            "description": "交易日期"
+          },
+          "description": {
+            "type": "string",
+            "description": "交易描述"
+          },
+          "amount": {
+            "type": "number",
+            "description": "交易金額（正數為存入，負數為支出）"
+          },
+          "balance": {
+            "type": "number",
+            "description": "交易後餘額"
+          },
+          "transaction_type": {
+            "type": "string",
+            "enum": ["deposit", "withdrawal", "transfer_in", "transfer_out", "fee", "interest"],
+            "description": "交易類型"
+          },
+          "channel": {
+            "type": "string",
+            "enum": ["atm", "counter", "online", "mobile", "auto"],
+            "description": "交易管道"
+          },
+          "reference_number": {
+            "type": "string",
+            "description": "交易序號"
+          }
+        }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "description": "統計摘要",
+      "properties": {
+        "total_transactions": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "largest_deposit": {
+          "type": "number"
+        },
+        "largest_withdrawal": {
+          "type": "number"
+        },
+        "average_daily_balance": {
+          "type": "number"
+        }
+      }
+    },
+    "metadata": {
+      "type": "object",
+      "properties": {
+        "extracted_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "extraction_method": {
+          "type": "string",
+          "enum": ["rule_based", "ai", "hybrid"]
+        },
+        "confidence": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        }
+      }
+    }
+  }
+}
+

@@ -1,0 +1,282 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://task-service.local/schemas/credit_card.json",
+  "title": "信用卡帳單",
+  "description": "信用卡帳單資料結構定義",
+  "type": "object",
+  "required": [
+    "document_type",
+    "bank_name",
+    "statement_period",
+    "payment_info",
+    "card_info"
+  ],
+  "properties": {
+    "document_type": {
+      "type": "string",
+      "const": "credit_card",
+      "description": "文件類型"
+    },
+    "bank_name": {
+      "type": "string",
+      "description": "銀行名稱",
+      "examples": ["台北富邦銀行", "中國信託", "國泰世華"]
+    },
+    "statement_period": {
+      "type": "object",
+      "description": "帳單期間",
+      "required": ["year", "month"],
+      "properties": {
+        "year": {
+          "type": "integer",
+          "minimum": 2000,
+          "maximum": 2200,
+          "description": "年份（西元）"
+        },
+        "month": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 12,
+          "description": "月份"
+        },
+        "statement_date": {
+          "type": "string",
+          "format": "date",
+          "description": "帳單結帳日 (YYYY-MM-DD)"
+        }
+      }
+    },
+    "payment_info": {
+      "type": "object",
+      "description": "繳款資訊",
+      "required": ["total_amount_due", "due_date"],
+      "properties": {
+        "previous_balance": {
+          "type": "number",
+          "description": "前期應繳總額"
+        },
+        "previous_payment": {
+          "type": "number",
+          "description": "已繳金額"
+        },
+        "new_charges": {
+          "type": "number",
+          "description": "本期新增消費"
+        },
+        "total_amount_due": {
+          "type": "number",
+          "minimum": 0,
+          "description": "本期應繳總額"
+        },
+        "minimum_payment": {
+          "type": "number",
+          "minimum": 0,
+          "description": "最低應繳金額"
+        },
+        "due_date": {
+          "type": "string",
+          "format": "date",
+          "description": "繳款截止日 (YYYY-MM-DD)"
+        },
+        "auto_debit": {
+          "type": "object",
+          "description": "自動扣繳資訊",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "是否已設定自動扣繳"
+            },
+            "account_number": {
+              "type": "string",
+              "description": "扣款帳號（遮罩後）"
+            },
+            "amount_type": {
+              "type": "string",
+              "enum": ["total", "minimum", "custom"],
+              "description": "扣款金額類型"
+            }
+          }
+        }
+      }
+    },
+    "card_info": {
+      "type": "object",
+      "description": "信用卡資訊",
+      "required": ["card_last4"],
+      "properties": {
+        "card_type": {
+          "type": "string",
+          "description": "卡片類型",
+          "examples": ["JCB晶緻正卡", "VISA白金卡", "MasterCard鈦金卡"]
+        },
+        "card_last4": {
+          "type": "string",
+          "pattern": "^[0-9]{4}$",
+          "description": "卡號後4碼"
+        },
+        "credit_limit": {
+          "type": "number",
+          "minimum": 0,
+          "description": "信用額度"
+        },
+        "cash_advance_limit": {
+          "type": "number",
+          "minimum": 0,
+          "description": "預借現金額度"
+        }
+      }
+    },
+    "interest_info": {
+      "type": "object",
+      "description": "利率資訊",
+      "properties": {
+        "revolving_apr": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100,
+          "description": "循環信用年利率 (%)"
+        },
+        "installment_apr": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100,
+          "description": "帳單分期年利率 (%)"
+        },
+        "annual_interest_fee": {
+          "type": "number",
+          "minimum": 0,
+          "description": "年度累計利息/費用"
+        }
+      }
+    },
+    "transactions": {
+      "type": "array",
+      "description": "消費明細",
+      "items": {
+        "type": "object",
+        "required": ["transaction_date", "description", "amount"],
+        "properties": {
+          "transaction_date": {
+            "type": "string",
+            "format": "date",
+            "description": "消費日期 (YYYY-MM-DD)"
+          },
+          "post_date": {
+            "type": "string",
+            "format": "date",
+            "description": "入帳日期 (YYYY-MM-DD)"
+          },
+          "description": {
+            "type": "string",
+            "description": "消費說明"
+          },
+          "merchant": {
+            "type": "string",
+            "description": "商店名稱"
+          },
+          "amount": {
+            "type": "number",
+            "description": "金額（正數為消費，負數為退款/繳款）"
+          },
+          "currency": {
+            "type": "string",
+            "default": "TWD",
+            "description": "幣別",
+            "examples": ["TWD", "USD", "JPY", "EUR"]
+          },
+          "foreign_amount": {
+            "type": "number",
+            "description": "外幣金額"
+          },
+          "transaction_type": {
+            "type": "string",
+            "enum": ["purchase", "payment", "refund", "fee", "interest", "installment"],
+            "description": "交易類型"
+          },
+          "installment_info": {
+            "type": "object",
+            "description": "分期資訊",
+            "properties": {
+              "current_period": {
+                "type": "integer",
+                "minimum": 1,
+                "description": "當期期數"
+              },
+              "total_periods": {
+                "type": "integer",
+                "minimum": 1,
+                "description": "總期數"
+              },
+              "remaining_amount": {
+                "type": "number",
+                "description": "尚未到期金額"
+              }
+            }
+          }
+        }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "description": "統計摘要",
+      "properties": {
+        "total_transactions": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "交易筆數"
+        },
+        "total_purchases": {
+          "type": "number",
+          "description": "消費總額"
+        },
+        "total_payments": {
+          "type": "number",
+          "description": "繳款總額"
+        },
+        "total_fees": {
+          "type": "number",
+          "description": "費用總額"
+        },
+        "categories": {
+          "type": "object",
+          "description": "消費分類統計",
+          "additionalProperties": {
+            "type": "number"
+          }
+        }
+      }
+    },
+    "metadata": {
+      "type": "object",
+      "description": "元資料",
+      "properties": {
+        "extracted_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "提取時間"
+        },
+        "extraction_method": {
+          "type": "string",
+          "enum": ["rule_based", "ai", "hybrid"],
+          "description": "提取方式"
+        },
+        "confidence": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "信心分數 (0-1)"
+        },
+        "source_file": {
+          "type": "string",
+          "description": "來源檔案名稱"
+        },
+        "total_pages": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "總頁數"
+        }
+      }
+    }
+  }
+}
+

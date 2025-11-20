@@ -8,6 +8,7 @@ from werkzeug.utils import secure_filename
 from . import api_bp
 from utils.pdf_parser import PDFParser
 from utils.document_processor import DocumentProcessor
+from utils.privacy_masker import PrivacyMasker
 
 
 def allowed_file(filename):
@@ -62,6 +63,7 @@ def gmail_webhook():
         subject = request.form.get('subject', '')
         email_date = request.form.get('date', '')
         pdf_password = request.form.get('password', '')  # PDF 密碼（選填）
+        mask_privacy = request.form.get('mask_privacy', 'false').lower() == 'true'  # 是否遮罩個資
         
         # 儲存檔案
         filename = secure_filename(file.filename)
@@ -85,6 +87,17 @@ def gmail_webhook():
                 'hint': '請在 password 參數中提供 PDF 密碼'
             }), 403
         
+        # 遮罩個資（如果需要）
+        mask_info = None
+        if mask_privacy:
+            masker = PrivacyMasker()
+            mask_result = masker.mask(pdf_content['text'])
+            pdf_content['text'] = mask_result.masked
+            mask_info = {
+                'masked_count': mask_result.mask_count,
+                'sensitive_types': list(set(item['type_name'] for item in mask_result.sensitive_items))
+            }
+        
         # 處理文件
         processor = DocumentProcessor()
         result = processor.process_document(
@@ -97,6 +110,10 @@ def gmail_webhook():
                 'filename': filename
             }
         )
+        
+        # 加入遮罩資訊
+        if mask_info:
+            result['privacy_masking'] = mask_info
         
         # 刪除已處理的檔案（可選）
         if os.getenv('DELETE_AFTER_PROCESS', 'true').lower() == 'true':
