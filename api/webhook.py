@@ -9,6 +9,7 @@ from . import api_bp
 from utils.pdf_parser import PDFParser
 from utils.document_processor import DocumentProcessor
 from utils.privacy_masker import PrivacyMasker
+from utils.extraction_manager import ExtractionManager
 
 
 def allowed_file(filename):
@@ -64,6 +65,7 @@ def gmail_webhook():
         email_date = request.form.get('date', '')
         pdf_password = request.form.get('password', '')  # PDF 密碼（選填）
         mask_privacy = request.form.get('mask_privacy', 'false').lower() == 'true'  # 是否遮罩個資
+        use_structured = request.form.get('structured', 'true').lower() == 'true'  # 是否使用結構化提取（預設啟用）
         
         # 儲存檔案
         filename = secure_filename(file.filename)
@@ -89,27 +91,77 @@ def gmail_webhook():
         
         # 遮罩個資（如果需要）
         mask_info = None
+        text_to_process = pdf_content['text']
+        
         if mask_privacy:
             masker = PrivacyMasker()
-            mask_result = masker.mask(pdf_content['text'])
-            pdf_content['text'] = mask_result.masked
+            mask_result = masker.mask(text_to_process)
+            text_to_process = mask_result.masked
             mask_info = {
                 'masked_count': mask_result.mask_count,
                 'sensitive_types': list(set(item['type_name'] for item in mask_result.sensitive_items))
             }
         
-        # 處理文件
-        processor = DocumentProcessor()
-        result = processor.process_document(
-            document_type=document_type,
-            content=pdf_content,
-            metadata={
+        # 選擇處理方式
+        if use_structured:
+            # 使用新的結構化提取
+            extractor = ExtractionManager(enable_ai_fallback=False)
+            extraction_metadata = {
+                'filename': filename,
+                'total_pages': pdf_content.get('total_pages'),
                 'sender': sender,
                 'subject': subject,
-                'date': email_date,
-                'filename': filename
+                'date': email_date
             }
-        )
+            
+            extraction_result = extractor.extract(
+                text_to_process,
+                metadata=extraction_metadata,
+                validate=True
+            )
+            
+            if extraction_result['success']:
+                result = {
+                    'status': 'success',
+                    'message': '文件處理完成（結構化提取）',
+                    'data': extraction_result['data'],
+                    'extraction_method': extraction_result['method'],
+                    'validation': extraction_result.get('validation')
+                }
+            else:
+                # 結構化提取失敗，fallback 到舊方法
+                current_app.logger.warning(f"結構化提取失敗，使用傳統方法: {extraction_result.get('errors')}")
+                processor = DocumentProcessor()
+                result = processor.process_document(
+                    document_type=document_type,
+                    content=pdf_content,
+                    metadata=extraction_metadata
+                )
+                result = {
+                    'status': 'success',
+                    'message': '文件處理完成（傳統方法）',
+                    'data': result,
+                    'extraction_method': 'legacy',
+                    'extraction_errors': extraction_result.get('errors')
+                }
+        else:
+            # 使用舊的處理器
+            processor = DocumentProcessor()
+            result = processor.process_document(
+                document_type=document_type,
+                content=pdf_content,
+                metadata={
+                    'sender': sender,
+                    'subject': subject,
+                    'date': email_date,
+                    'filename': filename
+                }
+            )
+            result = {
+                'status': 'success',
+                'message': '文件處理完成',
+                'data': result
+            }
         
         # 加入遮罩資訊
         if mask_info:
@@ -120,11 +172,7 @@ def gmail_webhook():
             os.remove(filepath)
         
         # 返回處理結果
-        return jsonify({
-            'status': 'success',
-            'message': '文件處理完成',
-            'data': result
-        }), 200
+        return jsonify(result), 200
         
     except Exception as e:
         current_app.logger.error(f'處理請求時發生錯誤: {str(e)}')
