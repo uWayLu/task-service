@@ -46,6 +46,12 @@
 - **範例**: 80年5月15日 或 1991/05/15
 - **遮罩**: ****/**/**
 
+### 自訂姓名 ⭐ 新增
+- **格式**: 從環境變數讀取或手動指定
+- **範例**: 王小明、張三、李四
+- **遮罩**: 完全遮罩（****）
+- **設定**: 在 `.env` 中設定 `PRIVACY_CUSTOM_NAMES=姓名1,姓名2,姓名3`
+
 ## 🧠 遮罩模式
 
 ### 標準模式（PrivacyMasker）
@@ -116,6 +122,22 @@ class MaskResult:
 
 ## 🛠️ 使用方式
 
+### 0. 設定自訂姓名（可選）⭐ 新增
+
+在 `.env` 檔案中設定要遮罩的姓名：
+
+```env
+# 方法 1: 逗號分隔（推薦）
+PRIVACY_CUSTOM_NAMES=王小明,張三,李四
+
+# 方法 2: 編號方式
+PRIVACY_NAME_1=王小明
+PRIVACY_NAME_2=張三
+PRIVACY_NAME_3=李四
+```
+
+設定後，系統會自動遮罩這些姓名。
+
 ### 1. 基本遮罩
 
 ```python
@@ -157,7 +179,27 @@ for item in items:
     print(f"找到 {item['type_name']}: {item['masked']}")
 ```
 
-### 4. 遮罩字典
+### 4. 自訂姓名遮罩 ⭐ 新增
+
+```python
+from utils.privacy_masker import PrivacyMasker
+
+# 方法 1: 從環境變數讀取（自動）
+masker = PrivacyMasker()  # 會自動讀取 PRIVACY_CUSTOM_NAMES
+
+# 方法 2: 手動指定姓名
+masker = PrivacyMasker(custom_names=['王小明', '張三', '李四'])
+
+# 方法 3: 動態加入姓名
+masker = PrivacyMasker()
+masker.add_custom_names(['新姓名1', '新姓名2'])
+
+# 使用
+result = masker.mask("聯絡人：王小明，負責人：張三")
+print(result.masked)  # 聯絡人：***，負責人：***
+```
+
+### 5. 遮罩字典
 
 ```python
 data = {

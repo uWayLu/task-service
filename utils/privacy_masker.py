@@ -5,10 +5,12 @@
 1. 自動偵測敏感資訊
 2. 遮罩個人資料
 3. 支援台灣常見個資格式
+4. 支援自訂姓名遮罩（從 ENV 讀取）
 """
 
+import os
 import re
-from typing import Dict, List, Tuple, Optional
+from typing import Dict, List, Optional
 from dataclasses import dataclass
 
 
@@ -70,15 +72,83 @@ class PrivacyMasker:
         }
     }
     
-    def __init__(self, mask_types: Optional[List[str]] = None):
+    def __init__(self, mask_types: Optional[List[str]] = None, custom_names: Optional[List[str]] = None):
         """
         初始化遮罩器
         
         Args:
             mask_types: 要遮罩的類型列表（None 表示全部）
+            custom_names: 自訂姓名列表（None 表示從環境變數讀取）
         """
         self.mask_types = mask_types or list(self.PATTERNS.keys())
+        self.custom_names = custom_names or self._load_custom_names()
         self.compiled_patterns = self._compile_patterns()
+        
+        # 如果有自訂姓名，加入姓名遮罩模式
+        if self.custom_names:
+            self._add_custom_names_pattern()
+    
+    def _load_custom_names(self) -> List[str]:
+        """
+        從環境變數載入自訂姓名列表
+        
+        支援格式：
+        1. PRIVACY_CUSTOM_NAMES=姓名1,姓名2,姓名3
+        2. PRIVACY_NAME_1=姓名1, PRIVACY_NAME_2=姓名2, ...
+        
+        Returns:
+            姓名列表
+        """
+        names = []
+        
+        # 方法 1: 逗號分隔的姓名列表
+        custom_names = os.getenv('PRIVACY_CUSTOM_NAMES', '')
+        if custom_names:
+            names.extend([n.strip() for n in custom_names.split(',') if n.strip()])
+        
+        # 方法 2: 編號的姓名
+        i = 1
+        while True:
+            name = os.getenv(f'PRIVACY_NAME_{i}')
+            if not name:
+                break
+            names.append(name.strip())
+            i += 1
+        
+        return names
+    
+    def _add_custom_names_pattern(self):
+        """加入自訂姓名遮罩模式"""
+        if not self.custom_names:
+            return
+        
+        # 建立姓名正則表達式（轉義特殊字元）
+        escaped_names = [re.escape(name) for name in self.custom_names]
+        names_pattern = '|'.join(escaped_names)
+        
+        # 加入姓名遮罩模式
+        self.PATTERNS['custom_names'] = {
+            'pattern': names_pattern,
+            'name': '自訂姓名',
+            'mask': lambda m: '*' * len(m)  # 完全遮罩
+        }
+        
+        # 如果 mask_types 包含 'custom_names' 或包含所有類型，重新編譯
+        if 'custom_names' not in self.mask_types:
+            self.mask_types.append('custom_names')
+        self.compiled_patterns = self._compile_patterns()
+    
+    def add_custom_names(self, names: List[str]):
+        """
+        動態加入自訂姓名
+        
+        Args:
+            names: 姓名列表
+        """
+        if not self.custom_names:
+            self.custom_names = []
+        self.custom_names.extend([n for n in names if n not in self.custom_names])
+        self._add_custom_names_pattern()
     
     def _compile_patterns(self) -> Dict:
         """編譯正則表達式"""
@@ -107,11 +177,43 @@ class PrivacyMasker:
         sensitive_items = []
         mask_count = 0
         
-        # 依序處理每種類型
+        # 先處理自訂姓名（避免部分匹配問題）
+        if 'custom_names' in self.compiled_patterns:
+            pattern_info = self.compiled_patterns['custom_names']
+            # 使用 word boundary 確保完整匹配
+            pattern_with_boundary = r'\b(' + pattern_info['regex'].pattern + r')\b'
+            compiled_pattern = re.compile(pattern_with_boundary)
+            matches = list(compiled_pattern.finditer(masked_text))
+            
+            # 從後往前替換，避免位置偏移問題
+            for match in reversed(matches):
+                original_value = match.group(1)  # 取得第一個捕獲組
+                masked_value = pattern_info['mask_func'](original_value)
+                
+                # 記錄敏感資料
+                sensitive_items.append({
+                    'type': 'custom_names',
+                    'type_name': pattern_info['name'],
+                    'original': original_value,
+                    'masked': masked_value,
+                    'position': match.span(1)  # 使用捕獲組的位置
+                })
+                
+                # 替換文字
+                start, end = match.span(1)
+                masked_text = masked_text[:start] + masked_value + masked_text[end:]
+                mask_count += 1
+        
+        # 依序處理其他類型
         for mask_type, pattern_info in self.compiled_patterns.items():
+            if mask_type == 'custom_names':
+                continue  # 已經處理過了
+            
             matches = pattern_info['regex'].finditer(masked_text)
             
-            for match in matches:
+            # 從後往前替換，避免位置偏移問題
+            matches_list = list(matches)
+            for match in reversed(matches_list):
                 original_value = match.group()
                 masked_value = pattern_info['mask_func'](original_value)
                 
@@ -125,7 +227,8 @@ class PrivacyMasker:
                 })
                 
                 # 替換文字
-                masked_text = masked_text.replace(original_value, masked_value)
+                start, end = match.span()
+                masked_text = masked_text[:start] + masked_value + masked_text[end:]
                 mask_count += 1
         
         return MaskResult(

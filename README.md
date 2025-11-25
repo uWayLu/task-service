@@ -175,6 +175,7 @@ curl -X POST http://localhost:12345/api/webhook/gmail \
 - 銀行帳號
 - 地址
 - 出生日期
+- **自訂姓名** ⭐ 新增（從 ENV 讀取）
 
 ```bash
 # Console
@@ -185,6 +186,8 @@ curl -X POST http://localhost:12345/api/webhook/gmail \
   -F "file=@statement.pdf" \
   -F "mask_privacy=true"
 ```
+
+**自訂姓名遮罩：** 在 `.env` 中設定 `PRIVACY_CUSTOM_NAMES=姓名1,姓名2,姓名3`
 
 **詳細說明：** [個資遮罩功能](docs/PRIVACY_MASKING.md)
 
@@ -350,6 +353,12 @@ PDF_DEFAULT_PASSWORDS=A123456789,19900101,12345678
 # AI API Keys（可選）
 OPENAI_API_KEY=sk-your-openai-key
 ANTHROPIC_API_KEY=sk-ant-your-anthropic-key
+
+# 個資遮罩 - 自訂姓名 ⭐ 新增
+PRIVACY_CUSTOM_NAMES=王小明,張三,李四
+# 或使用編號方式
+# PRIVACY_NAME_1=王小明
+# PRIVACY_NAME_2=張三
 
 # 功能開關
 ENABLE_DOCS_API=true
